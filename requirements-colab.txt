@@ -1,0 +1,21 @@
+# Colab-targeted dependency list. Same set as requirements.txt except
+# `torch` is intentionally omitted -- Colab preinstalls a torch build
+# already matched to its CUDA driver/runtime, and forcing a different
+# pinned version via pip risks breaking that pairing. The actual installed
+# torch version is captured at run time by `src/print_env.py` instead of
+# pinned here (constitution Principle III: record what can't be hard-pinned).
+datasets >= 2.14.0
+evaluate
+accelerate >= 0.12.0
+numpy
+sentencepiece != 0.1.92
+protobuf
+scikit-learn
+wandb
+tqdm
+hydra-core
+matplotlib
+nltk
+textstat
+mauve-text
+seaborn

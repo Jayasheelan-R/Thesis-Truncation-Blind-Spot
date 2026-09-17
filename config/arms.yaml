@@ -1,0 +1,62 @@
+# Manifest of every decoding arm this thesis runs. This is the single file
+# to edit if you want to add/remove/change an arm -- everything else (the
+# Colab notebook, run_all_arms.py) reads this and needs no further edits.
+#
+# Each arm trains for `num_iterations` generations at a fixed synthetic-data
+# contamination level (`human_data_alpha`/`ai_beta`, see contamination_pct
+# below -- derived using the corrected mapping in model_collapse's
+# README_OURS.md section 9: synthetic% = ai_beta / (ai_beta + human_data_alpha)).
+#
+# NOTE: 3 min_p + 5 top_k + 4 nucleus = 12 arms, not 15 -- flagging this since
+# the request mentioned 15. Add 3 more entries below (any family) if you
+# intended a 15-arm grid; the runner and notebook need no other change.
+
+num_iterations: 8
+
+contamination:
+  target_synthetic_pct: 30
+  human_data_alpha: 1.0
+  ai_beta: 0.428571429  # 0.3 / 0.7, i.e. ai_beta/(ai_beta+human_data_alpha) = 0.30
+
+arms:
+  # -- min_p (3) --
+  - name: minp_002
+    decoding: min_p
+    overrides: ["decoding.min_p=0.02"]
+  - name: minp_005
+    decoding: min_p
+    overrides: ["decoding.min_p=0.05"]
+  - name: minp_010
+    decoding: min_p
+    overrides: ["decoding.min_p=0.1"]
+
+  # -- top_k (5) --
+  - name: topk_5
+    decoding: top_k
+    overrides: ["decoding.top_k=5"]
+  - name: topk_10
+    decoding: top_k
+    overrides: ["decoding.top_k=10"]
+  - name: topk_20
+    decoding: top_k
+    overrides: ["decoding.top_k=20"]
+  - name: topk_50
+    decoding: top_k
+    overrides: ["decoding.top_k=50"]
+  - name: topk_100
+    decoding: top_k
+    overrides: ["decoding.top_k=100"]
+
+  # -- nucleus / top_p (4) --
+  - name: topp_080
+    decoding: nucleus
+    overrides: ["decoding.top_p=0.8"]
+  - name: topp_090
+    decoding: nucleus
+    overrides: ["decoding.top_p=0.9"]
+  - name: topp_095
+    decoding: nucleus
+    overrides: ["decoding.top_p=0.95"]
+  - name: topp_099
+    decoding: nucleus
+    overrides: ["decoding.top_p=0.99"]
