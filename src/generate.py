@@ -64,8 +64,32 @@ def load_dataset_for_generation(args):
 
     return dataset
 
-def generate_texts(dataloader, tokenizer, model, args):
-    """Generates texts from the dataset using the model."""
+def load_partial_generations(partial_path):
+    """Reads back whatever generate_texts() already flushed to
+    `partial_path` before a previous run was interrupted. Returns
+    (texts, tokenized_ids), both empty if there's nothing to resume."""
+    texts, tokenized_ids = [], []
+    if os.path.isfile(partial_path):
+        with open(partial_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                texts.append(row["text"])
+                tokenized_ids.append(row["input_ids"])
+    return texts, tokenized_ids
+
+
+def generate_texts(dataloader, tokenizer, model, args, partial_path, preloaded_texts, preloaded_ids):
+    """Generates texts from the dataset using the model.
+
+    `dataloader` only covers samples not already present in `partial_path`
+    (the caller already skipped those). Every batch is appended to
+    `partial_path` as soon as it's generated -- so a session that dies
+    mid-loop (the slowest part of a generation step, and the most likely
+    place for a Colab disconnect to land) loses at most one batch of
+    progress, not the whole iteration's generation."""
 
     if args.temperature==0.0:
         do_sample=False
@@ -74,52 +98,59 @@ def generate_texts(dataloader, tokenizer, model, args):
 
     new_tokens = args.block_size - args.input_token_length
 
-    generated_texts = []
-    tokenized_generated_texts = []
+    generated_texts = list(preloaded_texts)
+    tokenized_generated_texts = list(preloaded_ids)
 
     start_time=time.time()
-    # Loop through the dataset in batches
-    for batch in tqdm(dataloader, desc="Generating texts"):
+    # Loop through the (remaining) dataset in batches
+    with open(partial_path, "a") as partial_f:
+        for batch in tqdm(dataloader, desc="Generating texts"):
 
-        batch_input_ids, batch_attention_mask = batch[0].to(args.device), batch[1].to(args.device)
+            batch_input_ids, batch_attention_mask = batch[0].to(args.device), batch[1].to(args.device)
 
-        with torch.no_grad():
+            with torch.no_grad():
 
-            if args.beam_search:
-                generated_ids = model.generate(
-                    input_ids=batch_input_ids,
-                    attention_mask=batch_attention_mask,
-                    min_new_tokens=new_tokens,
-                    max_new_tokens=new_tokens,
-                    # max_length=args.block_size,
-                    pad_token_id=tokenizer.eos_token_id,
-                    num_beams=5,
-                    early_stopping=True
-                )
-            else:
-                # Generate outputs for the entire batch
-                generate_kwargs = dict(
-                    input_ids=batch_input_ids,
-                    attention_mask=batch_attention_mask,
-                    min_new_tokens=new_tokens,
-                    max_new_tokens=new_tokens,
-                    # max_length=args.block_size,
-                    pad_token_id=tokenizer.eos_token_id,
-                    do_sample=do_sample,
-                    temperature=args.temperature,
-                    top_p=args.top_p,
-                    top_k=args.top_k,
-                )
-                if args.min_p is not None:
-                    generate_kwargs["min_p"] = args.min_p
-                generated_ids = model.generate(**generate_kwargs)
+                if args.beam_search:
+                    generated_ids = model.generate(
+                        input_ids=batch_input_ids,
+                        attention_mask=batch_attention_mask,
+                        min_new_tokens=new_tokens,
+                        max_new_tokens=new_tokens,
+                        # max_length=args.block_size,
+                        pad_token_id=tokenizer.eos_token_id,
+                        num_beams=5,
+                        early_stopping=True
+                    )
+                else:
+                    # Generate outputs for the entire batch
+                    generate_kwargs = dict(
+                        input_ids=batch_input_ids,
+                        attention_mask=batch_attention_mask,
+                        min_new_tokens=new_tokens,
+                        max_new_tokens=new_tokens,
+                        # max_length=args.block_size,
+                        pad_token_id=tokenizer.eos_token_id,
+                        do_sample=do_sample,
+                        temperature=args.temperature,
+                        top_p=args.top_p,
+                        top_k=args.top_k,
+                    )
+                    if args.min_p is not None:
+                        generate_kwargs["min_p"] = args.min_p
+                    generated_ids = model.generate(**generate_kwargs)
 
-        # Decode and print each sequence in the batch
-        tokenized_generated_texts.extend(generated_ids.tolist())
+            # Decode and print each sequence in the batch
+            batch_tokenized = generated_ids.tolist()
+            batch_decoded = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-        decoded_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        generated_texts.extend(decoded_texts)
-    
+            tokenized_generated_texts.extend(batch_tokenized)
+            generated_texts.extend(batch_decoded)
+
+            for text, ids in zip(batch_decoded, batch_tokenized):
+                partial_f.write(json.dumps({"text": text, "input_ids": ids}) + "\n")
+            partial_f.flush()
+            os.fsync(partial_f.fileno())
+
     total_time = time.time() - start_time
     print(f"Total generation time: {total_time:.2f} seconds")
 
@@ -146,6 +177,17 @@ def main():
     directory = os.path.dirname(save_path)
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+    final_path = f"{save_path}.json"
+    partial_path = f"{save_path}.partial.jsonl"
+    if os.path.isfile(final_path):
+        print(f"{final_path} already exists -- nothing to generate (resuming).")
+        wandb.finish()
+        return
+
+    preloaded_texts, preloaded_ids = load_partial_generations(partial_path)
+    if preloaded_texts:
+        print(f"Resuming generation: {len(preloaded_texts)} sample(s) already generated, skipping them.")
 
     # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, padding_side="left")
@@ -183,6 +225,16 @@ def main():
     if args.num_samples:
         dataset = dataset.select(range(args.num_samples))
 
+    # Skip samples already generated in a previous, interrupted run of this
+    # exact iteration (order is deterministic: shuffle=False above, same
+    # seed/num_samples selection) -- only the remaining ones need generating.
+    already_done = len(preloaded_texts)
+    if already_done >= len(dataset):
+        print("All samples already generated in the partial file; skipping straight to post-processing.")
+        dataset = dataset.select(range(0, 0))
+    elif already_done > 0:
+        dataset = dataset.select(range(already_done, len(dataset)))
+
     # Create TensorDataset
     dataset = TensorDataset(torch.tensor(dataset["input_ids"]), torch.tensor(dataset["attention_mask"]))
 
@@ -195,8 +247,10 @@ def main():
         shuffle=False  # Keep order consistent, or set to True if desired
     )
 
-    # Generate texts
-    generated_texts, tokenized_generated_texts = generate_texts(dataloader, tokenizer, model, args)
+    # Generate texts (resumes mid-loop from partial_path if it has content)
+    generated_texts, tokenized_generated_texts = generate_texts(
+        dataloader, tokenizer, model, args, partial_path, preloaded_texts, preloaded_ids
+    )
 
     dataset = Dataset.from_dict({
         "text": generated_texts,
@@ -284,6 +338,9 @@ def main():
 
     with open(f"{save_path}_metrics.json", "w") as file:
         json.dump(metrics, file, indent=4)
+
+    if os.path.isfile(partial_path):
+        os.remove(partial_path)
 
     wandb.finish()
 

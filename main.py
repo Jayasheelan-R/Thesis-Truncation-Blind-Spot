@@ -140,7 +140,12 @@ def main(cfg: DictConfig):
         if num_samples != "None":
             command.extend(["--num_samples", num_samples])
 
-        subprocess.run(command)
+        generate_data_path = f"{experiment_path}/{iteration}/data.json"
+        generate_metrics_path = f"{experiment_path}/{iteration}/data_metrics.json"
+        if os.path.isfile(generate_data_path) and os.path.isfile(generate_metrics_path):
+            print(f"Skipping generate for iteration {iteration}: already completed (resuming) -- only training remains.")
+        else:
+            subprocess.run(command)
 
         write_generation_config_audit(experiment_path, iteration, cfg, command)
 

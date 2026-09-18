@@ -48,6 +48,13 @@ not so aggressive that early generations are uninformative.
   loading (`load_data_ours.py`), contamination/diversity metrics
   (`utils/contamination_metrics.py`), decay-curve analysis
   (`analyze_metrics.py`), environment snapshot (`print_env.py`).
+  `generate.py` checkpoints every generated batch to a `*.partial.jsonl`
+  file next to its output as it goes, so a Colab disconnect mid-generation
+  (the slowest step, and the likeliest place to lose a session) only loses
+  the in-flight batch, not the whole iteration -- re-running resumes from
+  the last flushed batch. `main.py` separately skips re-running `generate.py`
+  entirely for an iteration whose `data.json`/`data_metrics.json` already
+  exist, going straight to training.
 - `colab_run.ipynb` -- clones this repo on Colab, does the one-time data
   load + environment snapshot, and runs either one arm (`ARM_NAME`, the
   default -- for a first full validation pass) or the whole sweep
