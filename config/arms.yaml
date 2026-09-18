@@ -19,7 +19,7 @@ contamination:
   ai_beta: 0.428571429  # 0.3 / 0.7, i.e. ai_beta/(ai_beta+human_data_alpha) = 0.30
 
 arms:
-  # -- min_p (3) --
+  # -- min_p (4) --
   - name: minp_002
     decoding: min_p
     overrides: ["decoding.min_p=0.02"]
@@ -29,8 +29,11 @@ arms:
   - name: minp_010
     decoding: min_p
     overrides: ["decoding.min_p=0.1"]
+  - name: minp_020
+    decoding: min_p
+    overrides: ["decoding.min_p=0.2"]
 
-  # -- top_k (5) --
+  # -- top_k (6) --
   - name: topk_5
     decoding: top_k
     overrides: ["decoding.top_k=5"]
@@ -40,14 +43,23 @@ arms:
   - name: topk_20
     decoding: top_k
     overrides: ["decoding.top_k=20"]
-  - name: topk_50
+  - name: topk_40
     decoding: top_k
-    overrides: ["decoding.top_k=50"]
-  - name: topk_100
+    overrides: ["decoding.top_k=40"]
+  - name: topk_80
     decoding: top_k
-    overrides: ["decoding.top_k=100"]
+    overrides: ["decoding.top_k=80"]
+  - name: topk_160
+    decoding: top_k
+    overrides: ["decoding.top_k=160"]
 
-  # -- nucleus / top_p (4) --
+  # -- nucleus / top_p (5) --
+  - name: topp_070
+    decoding: nucleus
+    overrides: ["decoding.top_p=0.7"]
+  - name: topp_080
+    decoding: nucleus
+    overrides: ["decoding.top_p=0.8"]
   - name: topp_080
     decoding: nucleus
     overrides: ["decoding.top_p=0.8"]
