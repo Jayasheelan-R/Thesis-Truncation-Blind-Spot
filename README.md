@@ -59,6 +59,11 @@ not so aggressive that early generations are uninformative.
   load + environment snapshot, and runs either one arm (`ARM_NAME`, the
   default -- for a first full validation pass) or the whole sweep
   (`ARM_NAME = None`) unattended.
+- `local_gpu_run.ipynb` -- same as `colab_run.ipynb`, for a machine with
+  its own GPU instead of Colab. No `google.colab` APIs; `DRIVE_ROOT` points
+  at a locally-synced copy of the same Drive folder (Google Drive for
+  Desktop or similar), so runs on this machine and on Colab share the same
+  experiment state and resume logic.
 
 ## Storage split
 
@@ -75,6 +80,15 @@ Open `colab_run.ipynb` in Colab, set `REPO_URL` in cell 2 to this repo's
 GitHub URL (the one manual edit point), and run all cells top to bottom.
 Re-running the notebook after a disconnect resumes automatically -- no
 other changes needed.
+
+## Running on a GPU laptop
+
+Open `local_gpu_run.ipynb`, set `DRIVE_ROOT` in cell 2 to wherever Google
+Drive for Desktop (or equivalent) syncs `MyDrive/FinalProject` to on this
+machine, and run all cells top to bottom. Make sure `torch` was installed
+matching this machine's actual GPU/CUDA driver *before* running the
+notebook (`requirements.txt`'s `torch >= 1.3` pin alone doesn't guarantee
+a CUDA build -- install it yourself first per pytorch.org if needed).
 
 ## Running locally (Mac, smoke test only)
 
