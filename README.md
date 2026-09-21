@@ -68,7 +68,7 @@ not so aggressive that early generations are uninformative.
 ## Storage split
 
 - **Google Drive** (`/content/drive/MyDrive/FinalProject`):
-  WikiText-103 data (20,000-row cap, already loaded there), model
+  WikiText-103 data (2,000-row cap, ~391 grouped training rows), model
   checkpoints, generated data, and per-run metrics JSON -- everything
   that needs to survive a Colab session reset.
 - **W&B**: every generation's metrics, for cross-arm comparison/plotting
